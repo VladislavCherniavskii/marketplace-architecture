@@ -2,80 +2,70 @@
 
 ## 1. C4 Container
 
-Container-level диаграмма маркетплейса. Акторы, контейнеры, хранилища, брокер событий и внешние системы; на связях — протокол (HTTPS / REST / gRPC / SQL / async).
-
 ```mermaid
 flowchart TB
-    classDef person  fill:#08427b,color:#fff,stroke:#052e56,stroke-width:2px
-    classDef c4cont  fill:#1168bd,color:#fff,stroke:#0b4884
-    classDef c4db    fill:#1168bd,color:#fff,stroke:#0b4884
-    classDef c4queue fill:#1168bd,color:#fff,stroke:#0b4884
-    classDef ext     fill:#8a8a8a,color:#fff,stroke:#5a5a5a
+    classDef person fill:#08427b,color:#fff,stroke:#052e56,stroke-width:2px
+    classDef cont   fill:#1168bd,color:#fff,stroke:#0b4884
+    classDef db     fill:#1168bd,color:#fff,stroke:#0b4884
+    classDef queue  fill:#1168bd,color:#fff,stroke:#0b4884
+    classDef ext    fill:#8a8a8a,color:#fff,stroke:#5a5a5a
 
-    buyer["Покупатель<br/>[Person]"]:::person
-    seller["Продавец<br/>[Person]"]:::person
+    buyer["Покупатель"]:::person
+    seller["Продавец"]:::person
+    psp["Платёжный<br/>провайдер"]:::ext
+    msg["Email / SMS / Push<br/>провайдер"]:::ext
 
-    psp["Платёжный провайдер<br/>[Software System]"]:::ext
-    msg["Email / SMS / Push<br/>[Software System]"]:::ext
+    web["Web SPA<br/>React / Vue"]:::cont
+    api["API Gateway<br/>Kong / Nginx"]:::cont
 
-    subgraph MP["Маркетплейс  [System]"]
-        direction TB
-
-        web["Web SPA<br/>[Container: React/Vue]<br/>UI покупателя и продавца"]:::c4cont
-        api["API Gateway<br/>[Container: Kong/Nginx]<br/>Вход, auth, маршрутизация"]:::c4cont
-
-        subgraph SVC["Доменные сервисы  [Containers]"]
-            direction LR
-            user["User Service<br/>[FastAPI]<br/>Пользователи, роли"]:::c4cont
-            catalog["Catalog Service<br/>[FastAPI]<br/>Товары, цены, остатки"]:::c4cont
-            order["Order Service<br/>[FastAPI]<br/>Корзина, заказы"]:::c4cont
-            payment["Payment Service<br/>[FastAPI]<br/>Платежи, возвраты"]:::c4cont
-            feed["Feed Service<br/>[FastAPI]<br/>Поиск, лента"]:::c4cont
-            notif["Notification Service<br/>[FastAPI]<br/>Уведомления"]:::c4cont
-        end
-
-        kafka[["Kafka<br/>[Container: Event Bus]<br/>Асинхронные события"]]:::c4queue
-
-        subgraph DBS["Хранилища  [Containers]"]
-            direction LR
-            udb[("User DB<br/>[PostgreSQL]")]:::c4db
-            cdb[("Catalog DB<br/>[PostgreSQL]")]:::c4db
-            odb[("Order DB<br/>[PostgreSQL]")]:::c4db
-            pdb[("Payment DB<br/>[PostgreSQL]")]:::c4db
-            fdb[("Feed Index<br/>[OpenSearch/Redis]")]:::c4db
-            ndb[("Notification DB<br/>[PostgreSQL]")]:::c4db
-        end
+    subgraph Services["Доменные сервисы"]
+        direction LR
+        user["User<br/>Service"]:::cont
+        catalog["Catalog<br/>Service"]:::cont
+        order["Order<br/>Service"]:::cont
+        payment["Payment<br/>Service"]:::cont
+        feed["Feed<br/>Service"]:::cont
+        notif["Notification<br/>Service"]:::cont
     end
 
-    %% --- Синхронные вызовы ---
-    buyer  -->|HTTPS| web
+    kafka[["Kafka<br/>Event Bus"]]:::queue
+
+    subgraph DBs["Хранилища"]
+        direction LR
+        udb[("User DB<br/>PostgreSQL")]:::db
+        cdb[("Catalog DB<br/>PostgreSQL")]:::db
+        odb[("Order DB<br/>PostgreSQL")]:::db
+        pdb[("Payment DB<br/>PostgreSQL")]:::db
+        fdb[("Feed Index<br/>OpenSearch")]:::db
+        ndb[("Notif DB<br/>PostgreSQL")]:::db
+    end
+
+    buyer -->|HTTPS| web
     seller -->|HTTPS| web
-    web    -->|HTTPS/JSON| api
-    api    -->|REST/gRPC| user
-    api    -->|REST/gRPC| catalog
-    api    -->|REST/gRPC| order
-    api    -->|REST/gRPC| payment
-    api    -->|REST/gRPC| feed
-    order  -.->|sync: цена/остаток| catalog
-    order  -.->|sync: создать платёж| payment
+    web -->|HTTPS| api
+    api -->|REST| user
+    api -->|REST| catalog
+    api -->|REST| order
+    api -->|REST| payment
+    api -->|REST| feed
+    order -.->|sync| catalog
+    order -.->|sync| payment
     payment -->|HTTPS| psp
-    notif   -->|HTTPS/SMTP| msg
+    notif -->|SMTP| msg
 
-    %% --- Владение данными ---
-    user    --- udb
+    user --- udb
     catalog --- cdb
-    order   --- odb
+    order --- odb
     payment --- pdb
-    feed    --- fdb
-    notif   --- ndb
+    feed --- fdb
+    notif --- ndb
 
-    %% --- Асинхронные события ---
-    user    -.->|publish user.*| kafka
-    catalog -.->|publish product.*| kafka
-    order   -.->|publish order.*| kafka
-    payment -.->|publish payment.*| kafka
-    kafka   -.->|consume product.*, user.*, order.*| feed
-    kafka   -.->|consume order.*, payment.*| notif
+    user -.->|event| kafka
+    catalog -.->|event| kafka
+    order -.->|event| kafka
+    payment -.->|event| kafka
+    kafka -.->|event| feed
+    kafka -.->|event| notif
 ```
 
 ---
