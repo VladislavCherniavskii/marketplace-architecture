@@ -2,71 +2,7 @@
 
 ## 1. C4 Container
 
-```mermaid
-flowchart TB
-    classDef person fill:#08427b,color:#fff,stroke:#052e56,stroke-width:2px
-    classDef cont   fill:#1168bd,color:#fff,stroke:#0b4884
-    classDef db     fill:#1168bd,color:#fff,stroke:#0b4884
-    classDef queue  fill:#1168bd,color:#fff,stroke:#0b4884
-    classDef ext    fill:#8a8a8a,color:#fff,stroke:#5a5a5a
-
-    buyer["Покупатель"]:::person
-    seller["Продавец"]:::person
-    psp["Платёжный<br/>провайдер"]:::ext
-    msg["Email / SMS / Push<br/>провайдер"]:::ext
-
-    web["Web SPA<br/>React / Vue"]:::cont
-    api["API Gateway<br/>Kong / Nginx"]:::cont
-
-    subgraph Services["Доменные сервисы"]
-        direction LR
-        user["User<br/>Service"]:::cont
-        catalog["Catalog<br/>Service"]:::cont
-        order["Order<br/>Service"]:::cont
-        payment["Payment<br/>Service"]:::cont
-        feed["Feed<br/>Service"]:::cont
-        notif["Notification<br/>Service"]:::cont
-    end
-
-    kafka[["Kafka<br/>Event Bus"]]:::queue
-
-    subgraph DBs["Хранилища"]
-        direction LR
-        udb[("User DB<br/>PostgreSQL")]:::db
-        cdb[("Catalog DB<br/>PostgreSQL")]:::db
-        odb[("Order DB<br/>PostgreSQL")]:::db
-        pdb[("Payment DB<br/>PostgreSQL")]:::db
-        fdb[("Feed Index<br/>OpenSearch")]:::db
-        ndb[("Notif DB<br/>PostgreSQL")]:::db
-    end
-
-    buyer -->|HTTPS| web
-    seller -->|HTTPS| web
-    web -->|HTTPS| api
-    api -->|REST| user
-    api -->|REST| catalog
-    api -->|REST| order
-    api -->|REST| payment
-    api -->|REST| feed
-    order -.->|sync| catalog
-    order -.->|sync| payment
-    payment -->|HTTPS| psp
-    notif -->|SMTP| msg
-
-    user --- udb
-    catalog --- cdb
-    order --- odb
-    payment --- pdb
-    feed --- fdb
-    notif --- ndb
-
-    user -.->|event| kafka
-    catalog -.->|event| kafka
-    order -.->|event| kafka
-    payment -.->|event| kafka
-    kafka -.->|event| feed
-    kafka -.->|event| notif
-```
+![C4 Container](docs/c4-container.png)
 
 ---
 
@@ -154,8 +90,6 @@ flowchart TB
 
 ## 8. Что реализовано в репозитории
 
-Поднят **один сервис** — `catalog-service` с health-check, демонстрирующий запуск в Docker.
-
 ### Структура
 
 ```
@@ -164,6 +98,8 @@ marketplace-architecture/
 ├── docker-compose.yml
 ├── .dockerignore
 ├── .gitignore
+├── docs/
+│   └── c4-container.png
 └── services/
     └── catalog-service/
         ├── Dockerfile
