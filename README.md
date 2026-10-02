@@ -2,59 +2,80 @@
 
 ## 1. C4 Container
 
+Container-level диаграмма маркетплейса. Акторы, контейнеры, хранилища, брокер событий и внешние системы; на связях — протокол (HTTPS / REST / gRPC / SQL / async).
+
 ```mermaid
-C4Container
-    title Container diagram — Маркетплейс
+flowchart TB
+    classDef person  fill:#08427b,color:#fff,stroke:#052e56,stroke-width:2px
+    classDef c4cont  fill:#1168bd,color:#fff,stroke:#0b4884
+    classDef c4db    fill:#1168bd,color:#fff,stroke:#0b4884
+    classDef c4queue fill:#1168bd,color:#fff,stroke:#0b4884
+    classDef ext     fill:#8a8a8a,color:#fff,stroke:#5a5a5a
 
-    Person(buyer, "Покупатель")
-    Person(seller, "Продавец")
+    buyer["Покупатель<br/>[Person]"]:::person
+    seller["Продавец<br/>[Person]"]:::person
 
-    System_Boundary(mp, "Маркетплейс") {
-        Container(web, "Web SPA", "React/Vue", "UI покупателя и продавца")
-        Container(api, "API Gateway", "Kong/Nginx", "Единая точка входа, auth, маршрутизация")
-        Container(user, "User Service", "FastAPI", "Пользователи, роли, профили")
-        Container(catalog, "Catalog Service", "FastAPI", "Товары, категории, цены, остатки")
-        Container(feed, "Feed Service", "FastAPI", "Поиск и персонализированная лента")
-        Container(order, "Order Service", "FastAPI", "Корзина, заказы, статусы")
-        Container(payment, "Payment Service", "FastAPI", "Платежи, возвраты, выплаты")
-        Container(notification, "Notification Service", "FastAPI", "Email/SMS/Push")
-        ContainerQueue(kafka, "Kafka", "Event Bus", "Асинхронные события")
+    psp["Платёжный провайдер<br/>[Software System]"]:::ext
+    msg["Email / SMS / Push<br/>[Software System]"]:::ext
 
-        ContainerDb(user_db, "User DB", "PostgreSQL")
-        ContainerDb(catalog_db, "Catalog DB", "PostgreSQL")
-        ContainerDb(feed_db, "Feed Index", "OpenSearch/Redis")
-        ContainerDb(order_db, "Order DB", "PostgreSQL")
-        ContainerDb(payment_db, "Payment DB", "PostgreSQL")
-        ContainerDb(notif_db, "Notification DB", "PostgreSQL")
-    }
+    subgraph MP["Маркетплейс  [System]"]
+        direction TB
 
-    System_Ext(psp, "Платёжный провайдер")
-    System_Ext(msg, "Email/SMS/Push провайдер")
+        web["Web SPA<br/>[Container: React/Vue]<br/>UI покупателя и продавца"]:::c4cont
+        api["API Gateway<br/>[Container: Kong/Nginx]<br/>Вход, auth, маршрутизация"]:::c4cont
 
-    Rel(buyer, web, "HTTPS")
-    Rel(seller, web, "HTTPS")
-    Rel(web, api, "HTTPS/JSON")
-    Rel(api, user, "REST/gRPC")
-    Rel(api, catalog, "REST/gRPC")
-    Rel(api, feed, "REST/gRPC")
-    Rel(api, order, "REST/gRPC")
-    Rel(api, payment, "REST/gRPC")
-    Rel(order, catalog, "sync: цена/остаток")
-    Rel(order, payment, "sync: создать платёж")
-    Rel(payment, psp, "HTTPS")
-    Rel(notification, msg, "HTTPS/SMTP")
-    Rel(user, user_db, "SQL")
-    Rel(catalog, catalog_db, "SQL")
-    Rel(feed, feed_db, "API/SQL")
-    Rel(order, order_db, "SQL")
-    Rel(payment, payment_db, "SQL")
-    Rel(notification, notif_db, "SQL")
-    Rel(catalog, kafka, "publish product.*")
-    Rel(order, kafka, "publish order.*")
-    Rel(payment, kafka, "publish payment.*")
-    Rel(user, kafka, "publish user.*")
-    Rel(feed, kafka, "consume product.*, user.*, order.*")
-    Rel(notification, kafka, "consume order.*, payment.*")
+        subgraph SVC["Доменные сервисы  [Containers]"]
+            direction LR
+            user["User Service<br/>[FastAPI]<br/>Пользователи, роли"]:::c4cont
+            catalog["Catalog Service<br/>[FastAPI]<br/>Товары, цены, остатки"]:::c4cont
+            order["Order Service<br/>[FastAPI]<br/>Корзина, заказы"]:::c4cont
+            payment["Payment Service<br/>[FastAPI]<br/>Платежи, возвраты"]:::c4cont
+            feed["Feed Service<br/>[FastAPI]<br/>Поиск, лента"]:::c4cont
+            notif["Notification Service<br/>[FastAPI]<br/>Уведомления"]:::c4cont
+        end
+
+        kafka[["Kafka<br/>[Container: Event Bus]<br/>Асинхронные события"]]:::c4queue
+
+        subgraph DBS["Хранилища  [Containers]"]
+            direction LR
+            udb[("User DB<br/>[PostgreSQL]")]:::c4db
+            cdb[("Catalog DB<br/>[PostgreSQL]")]:::c4db
+            odb[("Order DB<br/>[PostgreSQL]")]:::c4db
+            pdb[("Payment DB<br/>[PostgreSQL]")]:::c4db
+            fdb[("Feed Index<br/>[OpenSearch/Redis]")]:::c4db
+            ndb[("Notification DB<br/>[PostgreSQL]")]:::c4db
+        end
+    end
+
+    %% --- Синхронные вызовы ---
+    buyer  -->|HTTPS| web
+    seller -->|HTTPS| web
+    web    -->|HTTPS/JSON| api
+    api    -->|REST/gRPC| user
+    api    -->|REST/gRPC| catalog
+    api    -->|REST/gRPC| order
+    api    -->|REST/gRPC| payment
+    api    -->|REST/gRPC| feed
+    order  -.->|sync: цена/остаток| catalog
+    order  -.->|sync: создать платёж| payment
+    payment -->|HTTPS| psp
+    notif   -->|HTTPS/SMTP| msg
+
+    %% --- Владение данными ---
+    user    --- udb
+    catalog --- cdb
+    order   --- odb
+    payment --- pdb
+    feed    --- fdb
+    notif   --- ndb
+
+    %% --- Асинхронные события ---
+    user    -.->|publish user.*| kafka
+    catalog -.->|publish product.*| kafka
+    order   -.->|publish order.*| kafka
+    payment -.->|publish payment.*| kafka
+    kafka   -.->|consume product.*, user.*, order.*| feed
+    kafka   -.->|consume order.*, payment.*| notif
 ```
 
 ---
